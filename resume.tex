@@ -1,0 +1,149 @@
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[T1]{fontenc}
+\usepackage{textcomp}
+\usepackage{lmodern}
+\usepackage{tabularx}
+\input{glyphtounicode}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+\setlength{\footskip}{8pt}
+
+% Adjust margins for more content
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.6in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-.6in}
+\addtolength{\textheight}{1.2in}
+
+\urlstyle{same}
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+\titleformat{\section}{\scshape\large\raggedright}{}{0em}{}[\titlerule]
+
+\pdfgentounicode=1
+
+% Custom Commands - reduced spacing
+\newcommand{\resumeItem}[1]{\item\small{#1}}
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-1pt}\item
+  \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+    \textbf{#1} & \textbf{#2} \\
+    \textit{\small#3} & \textit{\small #4} \\
+  \end{tabular*}
+  \vspace{-4pt}
+}
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]} 
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}[leftmargin=0.15in]}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-4pt}}
+
+\begin{document}
+
+%-----------HEADING-----------
+\begin{center}
+  \textbf{\Huge Yash Agrawal} \\ \vspace{1pt}
+  \small Bangalore, India \textbar\ \href{mailto:yashagrawalrkt123@gmail.com}{Email} \textbar\
+  \href{https://linkedin.com/in/yash-agrawal-208841307}{LinkedIn} \textbar\
+  \href{https://github.com/YashSensei}{GitHub} \textbar\
+  \href{https://my-portfolio-ashen-omega-15.vercel.app/}{Portfolio} 
+\end{center}
+
+%-----------EDUCATION-----------
+\section{Education}
+\resumeSubHeadingListStart
+  \resumeSubheading
+    {BITS Pilani}{Expected May 2027}
+    {Bachelor of Science in Computer Science}{}  
+  \resumeSubheading
+    {Scaler School of Technology}{April 2028}
+    {Bachelor of Science in Computer Science}{Bangalore, India}
+\resumeSubHeadingListEnd
+
+%-----------EXPERIENCE-----------
+\section{Experience}
+\resumeSubHeadingListStart
+
+  \resumeSubheading
+    {Full Stack Developer Intern}{July 2025 -- Present}
+    {Matiks.com}{}
+    \resumeItemListStart
+      \resumeItem{Developed daily questions system with streak tracking and live chat using WebSocket technology}
+      \resumeItem{Built solutions using Go (Gin-Gonic), TypeScript, and MongoDB}
+    \resumeItemListEnd
+
+  \resumeSubheading
+    {Full Stack Developer / Research Analyst}{Feb 2025 -- Present}
+    {Health Nivaran}{}
+    \resumeItemListStart
+      \resumeItem{Developed full-stack healthcare solutions and optimized WhatsApp chatbot functionalities}
+      \resumeItem{Conducted research analysis to improve platform features and user experience}
+    \resumeItemListEnd
+
+  \resumeSubheading
+    {Frontend Developer / Technical Writer}{June 2024 -- Jan 2025}
+    {MagnumKare (Remote)}{}
+    \resumeItemListStart
+      \resumeItem{Developed responsive healthcare portals improving user engagement through enhanced UX}
+      \resumeItem{Created technical documentation, API workflows, and blog posts for chatbot integration}
+    \resumeItemListEnd
+
+  \resumeSubheading
+    {Freelance Web Developer}{Jul 2023 -- Present}
+    {Remote}{}
+    \resumeItemListStart
+      \resumeItem{Built SEO-optimized websites and AI chatbot assistants used by multiple small businesses}
+    \resumeItemListEnd
+
+\resumeSubHeadingListEnd
+
+%-----------PROJECTS-----------
+\section{Projects}
+\resumeSubHeadingListStart
+  \resumeSubheading
+    {Kitabi Keeda - AI Book Recommender}
+    {\href{https://kitabi-keeda-six.vercel.app}{Live} \textbar\ \href{https://github.com/YashSensei/kitabi_keeda}{GitHub}}
+    {React, OpenAI API, Google Books API, Tailwind}{2024}
+    \resumeItemListStart
+      \resumeItem{Created book discovery platform with natural language prompts and real-time metadata integration}
+    \resumeItemListEnd
+
+  \resumeSubheading
+    {Doctor Dashboard}
+    {\href{https://health-nivaran-doctor-dash.vercel.app}{Live} \textbar\ \href{https://github.com/YashSensei/health-nivaran-doctor-dash}{GitHub}}
+    {React, Tailwind CSS, Vercel}{2024}
+    \resumeItemListStart
+      \resumeItem{Developed interactive dashboard visualizing doctor-chatbot integration interface}
+    \resumeItemListEnd
+
+\resumeSubHeadingListEnd
+
+%-----------SKILLS-----------
+\section{Technical Skills}
+\noindent
+\textbf{Languages:} JavaScript, TypeScript, Go, SQL \\
+\textbf{Frameworks/Tools:} React, Tailwind CSS, Gin-Gonic, MongoDB, WebSockets, Git, Vercel \\
+\textbf{Specializations:} Full-Stack Development, AI Integration, Technical Writing, SEO
+
+%-----------ACHIEVEMENTS & LEADERSHIP-----------
+\section{Achievements \& Leadership}
+\begin{itemize}[leftmargin=0.15in]
+  \item Qualified Scaler NSET 2024 with 100\% score in Learnability
+  \item House Captain, Basketball Team Captain, Event Organizer (Scaler School of Technology)
+  \item Built AI-enabled assistants serving multiple businesses; self-taught React, Node.js, and AI APIs
+\end{itemize}
+
+\end{document}
