@@ -326,13 +326,13 @@ const Terminal = () => {
         <div className="ml-4 space-y-2">
           <div>📄 Download my resume:</div>
           <a 
-            href="/rudray_mehra_resume.pdf" 
+            href="https://drive.google.com/file/d/1pEDOso3pqtHQ_4GOCBrxDXbVmor2rRtT/view?usp=sharing"
             target="_blank" 
             rel="noopener noreferrer" 
             className="text-terminal-primary hover:text-terminal-accent transition-colors flex items-center gap-2"
           >
             <FileText size={14} />
-            <span>rudray_mehra_resume.pdf</span>
+            <span>View on Google Drive</span>
           </a>
           <div className="text-sm text-terminal-muted mt-2">
             Click the link above to view or download my resume.
@@ -367,7 +367,7 @@ const Terminal = () => {
           <div>📁 experience</div>
           <div>📁 education</div>
           <div>📁 achievements</div>
-          <div>📄 resume.pdf</div>
+          <div>🔗 resume</div>
         </div>
       </div>
     ),
