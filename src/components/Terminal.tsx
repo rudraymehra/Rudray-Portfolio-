@@ -763,29 +763,22 @@ const Terminal = () => {
       }
     } else if (e.key === 'Tab') {
       e.preventDefault();
-      const val = trimmedLower.trim();
+      const val = currentInput.trim().toLowerCase();
       if (!val) return;
       const matches = commandList.filter((c) => c.startsWith(val));
+      if (matches.length === 0) return;
       if (matches.length === 1) {
         setCurrentInput(matches[0]);
-      } else if (matches.length > 1) {
+        return;
+      }
+      // Multiple matches: if we're already sitting on one, cycle to the next;
+      // otherwise complete to the common prefix (or the first match).
+      const idx = matches.indexOf(val);
+      if (idx >= 0) {
+        setCurrentInput(matches[(idx + 1) % matches.length]);
+      } else {
         const prefix = longestCommonPrefix(matches);
-        if (prefix.length > val.length) {
-          setCurrentInput(prefix);
-        } else {
-          // Print candidates like a real shell
-          setCommandHistory(prev => [...prev, {
-            input: currentInput,
-            output: (
-              <div className="text-terminal-text flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                {matches.map((m) => (
-                  <span key={m} className="text-terminal-primary">{m}</span>
-                ))}
-              </div>
-            ),
-          }]);
-          setHistoryIndex(-1);
-        }
+        setCurrentInput(prefix.length > val.length ? prefix : matches[0]);
       }
     } else if (e.key === 'ArrowRight' && ghost) {
       // Accept ghost suggestion only when caret is at the end
