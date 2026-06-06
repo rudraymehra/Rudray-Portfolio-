@@ -47,12 +47,17 @@ export default {
 				'glow': {
 					'0%, 100%': { textShadow: '0 0 5px currentColor' },
 					'50%': { textShadow: '0 0 20px currentColor, 0 0 30px currentColor' }
+				},
+				'fade-in-up': {
+					'0%': { opacity: '0', transform: 'translateY(6px)' },
+					'100%': { opacity: '1', transform: 'translateY(0)' }
 				}
 			},
 			animation: {
 				'typing': 'typing 3s steps(40, end)',
 				'blink': 'blink 1s infinite',
-				'glow': 'glow 2s ease-in-out infinite alternate'
+				'glow': 'glow 2s ease-in-out infinite alternate',
+				'fade-in-up': 'fade-in-up 0.25s ease-out both'
 			},
 			fontFamily: {
 				'mono': ['JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', 'monospace']

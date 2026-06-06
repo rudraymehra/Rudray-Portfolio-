@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Github, Linkedin, Mail, FileText, Globe, Building2 } from 'lucide-react';
+import { Github, Linkedin, Mail, FileText, Building2, Lock } from 'lucide-react';
+import BackgroundCode from './BackgroundCode';
 
 interface Command {
   input: string;
@@ -10,11 +11,83 @@ interface CommandFunction {
   (input?: string): React.ReactNode;
 }
 
+const RESUME_URL =
+  'https://drive.google.com/file/d/13b4NwEOqp40CgT8qV-bPAvziPOwFl2BT/view?usp=sharing';
+
+// Curated commands the ↑/↓ keys cycle through, so visitors can browse without typing.
+const QUICK_COMMANDS = [
+  'about',
+  'projects',
+  'skills',
+  'experience',
+  'education',
+  'achievements',
+  'contact',
+  'resume',
+  'help',
+];
+
+// Levenshtein distance for "did you mean?" suggestions
+const levenshtein = (a: string, b: string): number => {
+  const matrix = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(matrix[i - 1][j] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j - 1] + cost);
+    }
+  }
+  return matrix[a.length][b.length];
+};
+
+const longestCommonPrefix = (words: string[]): string => {
+  if (!words.length) return '';
+  let prefix = words[0];
+  for (const w of words) {
+    while (!w.startsWith(prefix)) prefix = prefix.slice(0, -1);
+  }
+  return prefix;
+};
+
+const BOOT_SEQUENCE = [
+  'booting rudray@portfolio ...',
+  'loading modules [ about · projects · skills · experience · education ] ... ok',
+  'establishing secure shell ... ok',
+  'type "help" to begin. ready.',
+].join('\n');
+
 const Terminal = () => {
   const [currentInput, setCurrentInput] = useState('');
   const [commandHistory, setCommandHistory] = useState<Command[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [booting, setBooting] = useState(true);
+  const [bootText, setBootText] = useState('');
   const commandHistoryRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const bootTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const welcomeOutput = () => (
+    <div className="text-terminal-text">
+      <div className="space-y-2">
+        <div className="text-terminal-accent">Welcome to Rudray's Portfolio Terminal! 🚀</div>
+        <div className="text-sm">
+          Full Stack &amp; Backend Engineer. Previously an SDE intern at InterviewBit (Scaler AI Labs),
+          building RL environments for frontier-model training.
+        </div>
+        <div className="text-sm mt-4">Quick Start:</div>
+        <div className="ml-4 space-y-1 text-sm">
+          <div>• Type <span className="text-terminal-primary">help</span> to see all commands</div>
+          <div>• Type <span className="text-terminal-primary">about</span> to learn more about me</div>
+          <div>• Type <span className="text-terminal-primary">projects</span> to view my work</div>
+          <div>• Type <span className="text-terminal-primary">experience</span> to see where I've worked</div>
+        </div>
+        <div className="text-terminal-muted text-xs mt-3">
+          Tip: use <span className="text-terminal-primary">↑ / ↓</span> for history,
+          {' '}<span className="text-terminal-primary">Tab</span> to autocomplete.
+        </div>
+      </div>
+    </div>
+  );
 
   const commands: Record<string, CommandFunction> = {
     help: () => (
@@ -30,6 +103,8 @@ const Terminal = () => {
           <div><span className="text-terminal-primary">education</span> - Educational background</div>
           <div><span className="text-terminal-primary">achievements</span> - My accomplishments</div>
           <div><span className="text-terminal-primary">resume</span> - Download my resume</div>
+          <div><span className="text-terminal-primary">history</span> - Show command history</div>
+          <div><span className="text-terminal-primary">crt</span> - Toggle retro CRT/scanline effect</div>
           <div><span className="text-terminal-primary">clear</span> - Clear terminal</div>
           <div><span className="text-terminal-primary">theme</span> - Change terminal theme</div>
           <div><span className="text-terminal-primary">fortune</span> - Display a random programming quote</div>
@@ -37,100 +112,71 @@ const Terminal = () => {
         <div className="mt-4 text-terminal-text">
           For more commands, type <span className="text-terminal-primary">man</span> to see the complete manual.
         </div>
+        <div className="mt-1 text-terminal-muted text-xs">
+          Navigate with <span className="text-terminal-primary">↑ / ↓</span> (history) and
+          {' '}<span className="text-terminal-primary">Tab</span> (autocomplete).
+        </div>
       </div>
     ),
     about: () => (
       <div className="text-terminal-text">
-        <div className="text-terminal-secondary mb-2">▶ About Rudray</div>
+        <div className="text-terminal-secondary mb-3 term-section">▶ About Rudray</div>
         <div className="ml-4 space-y-2">
-          <div>👋 Hey there! I'm Rudray Mehra, a Full Stack Developer & Backend Engineer.</div>
-          <div>🚀 I specialize in building scalable backend systems with Spring Boot, Node.js, and React applications.</div>
-          <div>💼 Currently working as an SDE Intern at InterviewBit (Scaler), building enterprise-grade software.</div>
-          <div>📚 Pursuing dual degrees - B.Tech in CS & AI at Scaler School of Technology and B.Sc. in CS at BITS Pilani.</div>
-          <div>🎯 Goal: Building robust, scalable systems that solve real-world problems.</div>
-          <div>🌟 When I'm not coding, you'll find me exploring new technologies, contributing to open source, or building tools for 2000+ students at SST.</div>
+          <div>👋 Hey there! I'm Rudray Mehra, a Full Stack Developer &amp; Backend Engineer.</div>
+          <div>🤖 Most recently an SDE intern at InterviewBit (Scaler AI Labs), where I built RL environments and evaluation pipelines used to train frontier models from OpenAI &amp; xAI.</div>
+          <div>🚀 I love building scalable backend systems with Spring Boot, Node.js, and modern React/Next.js frontends.</div>
+          <div>⛓️ Lately exploring Solana/Anchor (ZK compression) and AI infra on Kubernetes (FastAPI, LangGraph, Ollama).</div>
+          <div>📚 Pursuing a B.S. in Computer Science at BITS Pilani (Graduation 2027).</div>
+          <div>🎯 Goal: build robust, scalable systems that solve real-world problems.</div>
         </div>
       </div>
     ),
     projects: () => (
       <div className="text-terminal-text">
-        <div className="text-terminal-secondary mb-2">▶ Featured Projects</div>
+        <div className="text-terminal-secondary mb-3 term-section">▶ Featured Projects</div>
         <div className="ml-4 space-y-3">
-          <div className="border border-terminal-muted p-3 rounded">
-            <div className="text-terminal-accent font-bold">🏫 SST Internal Tools</div>
-            <div className="text-sm mt-1">Modular backend system for campus operations serving 2000+ students and staff</div>
-            <div className="text-terminal-primary text-xs mt-1">Tech: Spring Boot, JWT, PostgreSQL</div>
-            <div className="text-xs mt-1">• Designed authentication, announcements, mess management, transport, gallery modules</div>
-            <div className="text-xs">• Implemented secure RESTful APIs using DTOs, service layers, and JWT authentication</div>
-            <div className="text-xs">• Delivered unified digital tools enhancing campus operations and communication</div>
-          </div>
-          <div className="border border-terminal-muted p-3 rounded">
-            <div className="text-terminal-accent font-bold">🏆 House Arena - Inter-House Management Platform</div>
-            <div className="text-sm mt-1">Digital platform for managing house points, events, and inter-house activities</div>
-            <div className="text-terminal-primary text-xs mt-1">Tech: React (Vite), Sequelize, MySQL</div>
-            <div className="text-xs mt-1">• Migrated backend from MongoDB to MySQL using Sequelize ORM</div>
-            <div className="text-xs">• Event-based scoring with full CRUD for admin panel</div>
-            <div className="text-xs">• Serving 2000+ students for tracking events and streamlining activities</div>
-            <div className="mt-2 flex gap-4">
-              <a
-                href="https://github.com/rudraymehra"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-terminal-primary hover:text-terminal-accent transition-colors flex items-center gap-2 text-xs"
-              >
-                <Github size={12} />
-                <span>View Code</span>
-              </a>
+          <div className="term-card">
+            <div className="text-terminal-accent font-bold">🛡️ Sentinel - AI Observability &amp; Auto-Remediation for Kubernetes</div>
+            <div className="text-sm mt-1">AI-powered platform that detects, diagnoses, and recovers from cluster incidents using a three-brain architecture.</div>
+            <div className="tech-chips">
+              {['Kubernetes', 'FastAPI', 'Ollama', 'LangGraph', 'Qdrant'].map((t) => (
+                <span key={t} className="tech-chip">{t}</span>
+              ))}
+            </div>
+            <div className="text-xs mt-1">• Three-brain pipeline for detection, diagnosis, and recovery</div>
+            <div className="text-xs">• Integrated K8sGPT, OpenTelemetry, and VictoriaMetrics for grounded signals</div>
+            <div className="text-xs">• Generates remediation plans with human-in-the-loop safeguards</div>
+            <div className="text-terminal-muted text-xs mt-2 flex items-center gap-2">
+              <Lock size={12} />
+              <span>Private repo · May 2026 - Present</span>
             </div>
           </div>
-          <div className="border border-terminal-muted p-3 rounded">
-            <div className="text-terminal-accent font-bold">☕ Coffee Cast - Football Prediction for Cafés</div>
-            <div className="text-sm mt-1">Mobile-responsive dashboard forecasting café football using real-time weather data</div>
-            <div className="text-terminal-primary text-xs mt-1">Tech: React.js, TypeScript, Tailwind CSS, Recharts</div>
-            <div className="text-xs mt-1">• Integrated weather APIs and processed historical trends for accurate traffic predictions</div>
-            <div className="text-xs">• Designed reusable UI components with immersive data visualization</div>
-            <div className="text-xs">• Shop-level customization for location, seasonal sensitivity, and promotions</div>
-          </div>
-          <div className="border border-terminal-muted p-3 rounded">
-            <div className="text-terminal-accent font-bold">📊 Crypto Tracker Pro</div>
-            <div className="text-sm mt-1">Real-time cryptocurrency dashboard with auto-refresh, watchlist, and price alerts</div>
-            <div className="text-terminal-primary text-xs mt-1">Tech: React, REST APIs, Chart.js, CoinGecko API</div>
-            <div className="text-xs mt-1">• Visualized historical and live price charts with smooth animations</div>
-            <div className="text-xs">• Optimized API calls with efficient caching and debounce logic</div>
-            <div className="mt-2 flex gap-4">
-              <a
-                href="https://github.com/rudraymehra/StockMarketPredictor"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-terminal-primary hover:text-terminal-accent transition-colors flex items-center gap-2 text-xs"
-              >
-                <Github size={12} />
-                <span>View Code</span>
-              </a>
+          <div className="term-card">
+            <div className="text-terminal-accent font-bold">⛓️ KLIRA - Solana Limit-Order Protocol</div>
+            <div className="text-sm mt-1">On-chain limit orders with ZK compression that removes per-order rent costs while preserving self-custody.</div>
+            <div className="tech-chips">
+              {['Solana', 'Rust', 'Anchor', 'TypeScript', 'Next.js', 'PostgreSQL'].map((t) => (
+                <span key={t} className="tech-chip">{t}</span>
+              ))}
+            </div>
+            <div className="text-xs mt-1">• Used Light Protocol ZK compression to eliminate per-order rent</div>
+            <div className="text-xs">• Rust/Anchor smart contracts + a TypeScript keeper service executing via Jupiter</div>
+            <div className="text-xs">• Next.js frontend with wallet integration, Dockerized deploy, and CI/CD</div>
+            <div className="text-terminal-muted text-xs mt-2 flex items-center gap-2">
+              <Lock size={12} />
+              <span>Private repo · Jan 2026 - Mar 2026</span>
             </div>
           </div>
-          <div className="border border-terminal-muted p-3 rounded">
-            <div className="text-terminal-accent font-bold">🌐 HTTP Server - Production-Ready Implementation</div>
-            <div className="text-sm mt-1">Robust HTTP server with multi-threading, security controls, and monitoring</div>
-            <div className="text-terminal-primary text-xs mt-1">Tech: Java, Multi-threading, Socket Programming</div>
-            <div className="text-xs mt-1">• Implemented concurrent request handling with thread pooling</div>
-            <div className="text-xs">• Built comprehensive monitoring and security features</div>
-            <div className="mt-2 flex gap-4">
-              <a
-                href="https://github.com/rudraymehra/HTTP-SERVER"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-terminal-primary hover:text-terminal-accent transition-colors flex items-center gap-2 text-xs"
-              >
-                <Github size={12} />
-                <span>View Code</span>
-              </a>
+          <div className="term-card">
+            <div className="text-terminal-accent font-bold">🎯 InterviewLytics - AI Interview Intelligence Platform</div>
+            <div className="text-sm mt-1">AI-powered platform for candidate evaluation, recruiter workflows, and analytics dashboards.</div>
+            <div className="tech-chips">
+              {['Next.js', 'TypeScript', 'Tailwind CSS'].map((t) => (
+                <span key={t} className="tech-chip">{t}</span>
+              ))}
             </div>
-          </div>
-          <div className="border border-terminal-muted p-3 rounded">
-            <div className="text-terminal-accent font-bold">🎯 InterviewLytics - AI-Powered Hiring Platform</div>
-            <div className="text-sm mt-1">Complete frontend for an AI-powered hiring and interview analytics platform</div>
-            <div className="text-terminal-primary text-xs mt-1">Tech: TypeScript, React</div>
+            <div className="text-xs mt-1">• Built authentication, recruiter dashboards, and interview scheduling</div>
+            <div className="text-xs">• Implemented analytics visualizations for hiring insights</div>
             <div className="mt-2 flex gap-4">
               <a
                 href="https://github.com/rudraymehra/InterviewLytics"
@@ -143,10 +189,25 @@ const Terminal = () => {
               </a>
             </div>
           </div>
+
           <div className="mt-4 pt-4 border-t border-terminal-muted">
-            <div className="text-terminal-accent font-bold mb-2">📦 More Projects</div>
-            <div className="text-sm">
-              Check out more of my projects on GitHub including ScholarAI, RESS-Attrition-Prediction, and more.
+            <div className="text-terminal-accent font-bold mb-2">📦 More on GitHub</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+              <a href="https://github.com/rudraymehra/HTTP-SERVER" target="_blank" rel="noopener noreferrer" className="text-terminal-primary hover:text-terminal-accent flex items-center gap-2">
+                <Github size={12} /> HTTP-SERVER — production-ready HTTP server (Java)
+              </a>
+              <a href="https://github.com/rudraymehra/StockMarketPredictor" target="_blank" rel="noopener noreferrer" className="text-terminal-primary hover:text-terminal-accent flex items-center gap-2">
+                <Github size={12} /> Crypto Tracker — live prices via CoinGecko (JS)
+              </a>
+              <a href="https://github.com/rudraymehra/citepdf" target="_blank" rel="noopener noreferrer" className="text-terminal-primary hover:text-terminal-accent flex items-center gap-2">
+                <Github size={12} /> citepdf — citation-first PDF RAG (Python)
+              </a>
+              <a href="https://github.com/rudraymehra/ScholarAi" target="_blank" rel="noopener noreferrer" className="text-terminal-primary hover:text-terminal-accent flex items-center gap-2">
+                <Github size={12} /> ScholarAi — research assistant (TypeScript)
+              </a>
+              <a href="https://github.com/rudraymehra/RESS-Attrition-Prediction" target="_blank" rel="noopener noreferrer" className="text-terminal-primary hover:text-terminal-accent flex items-center gap-2">
+                <Github size={12} /> RESS — employee attrition prediction (Notebook)
+              </a>
             </div>
             <div className="mt-3">
               <a
@@ -165,7 +226,7 @@ const Terminal = () => {
     ),
     skills: () => (
       <div className="text-terminal-text">
-        <div className="text-terminal-secondary mb-2">▶ Technical Skills</div>
+        <div className="text-terminal-secondary mb-3 term-section">▶ Technical Skills</div>
         <div className="ml-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
@@ -176,7 +237,6 @@ const Terminal = () => {
                 <div>• JavaScript (ES6+)</div>
                 <div>• TypeScript</div>
                 <div>• SQL</div>
-                <div>• HTML/CSS</div>
               </div>
             </div>
             <div>
@@ -185,47 +245,45 @@ const Terminal = () => {
                 <div>• Spring Boot</div>
                 <div>• Node.js</div>
                 <div>• Express.js</div>
-                <div>• Sequelize ORM</div>
+                <div>• Spring Security</div>
                 <div>• REST APIs</div>
-                <div>• JPA</div>
+                <div>• JWT</div>
               </div>
             </div>
             <div>
               <div className="text-terminal-accent mb-2">Frontend</div>
               <div className="text-sm space-y-1">
                 <div>• React.js</div>
-                <div>• Vite</div>
+                <div>• Next.js</div>
                 <div>• Tailwind CSS</div>
-                <div>• Recharts</div>
-                <div>• Chart.js</div>
               </div>
             </div>
             <div>
               <div className="text-terminal-accent mb-2">Databases</div>
               <div className="text-sm space-y-1">
-                <div>• MySQL</div>
                 <div>• PostgreSQL</div>
+                <div>• MySQL</div>
                 <div>• MongoDB</div>
               </div>
             </div>
             <div>
-              <div className="text-terminal-accent mb-2">Tools & DevOps</div>
+              <div className="text-terminal-accent mb-2">Tools &amp; Platforms</div>
               <div className="text-sm space-y-1">
-                <div>• Git</div>
+                <div>• Git &amp; GitHub Actions</div>
                 <div>• Docker</div>
+                <div>• AWS</div>
                 <div>• Postman</div>
-                <div>• IntelliJ IDEA</div>
-                <div>• VS Code</div>
+                <div>• Solana · Anchor · Light Protocol</div>
               </div>
             </div>
             <div>
-              <div className="text-terminal-accent mb-2">Other</div>
+              <div className="text-terminal-accent mb-2">AI / Infra</div>
               <div className="text-sm space-y-1">
-                <div>• JWT Authentication</div>
-                <div>• Context API</div>
-                <div>• React Router</div>
-                <div>• date-fns</div>
-                <div>• Lucide Icons</div>
+                <div>• Kubernetes</div>
+                <div>• FastAPI</div>
+                <div>• LangGraph</div>
+                <div>• Ollama</div>
+                <div>• Qdrant</div>
               </div>
             </div>
           </div>
@@ -234,20 +292,31 @@ const Terminal = () => {
     ),
     experience: () => (
       <div className="text-terminal-text">
-        <div className="text-terminal-secondary mb-2">▶ Work Experience</div>
-        <div className="ml-4 space-y-3">
+        <div className="text-terminal-secondary mb-3 term-section">▶ Work Experience</div>
+        <div className="ml-4 space-y-4">
           <div className="border-l-2 border-terminal-primary pl-4">
             <div className="text-terminal-accent font-bold flex items-center gap-2">
               <Building2 size={16} />
               Software Development Engineer (SDE) Intern
             </div>
-            <div className="text-terminal-primary text-sm">InterviewBit Software Services (Scaler) • Nov 2025 - Feb 2026</div>
+            <div className="text-terminal-primary text-sm">InterviewBit (Scaler AI Labs) • Nov 2025 - Feb 2026</div>
             <div className="text-terminal-muted text-xs">Bengaluru, India</div>
             <div className="text-sm mt-2 space-y-1">
-              <div>• Working on Companion team building enterprise-grade software solutions</div>
-              <div>• Developing scalable backend services and APIs</div>
-              <div>• Collaborating with cross-functional teams on product development</div>
-              <div>• Contributing to internal tools and platform improvements</div>
+              <div>• Developed 4 high-fidelity RL environments (Ramp, Stripe, Linear, Intercom) for frontier-model training</div>
+              <div>• Built custom tasks, automated graders, and evaluation pipelines for OpenAI &amp; xAI training workflows</div>
+              <div>• Resolved QA failures across SAP, Ramp, and Gorgias environments, raising task success rates from 60% to 90%</div>
+            </div>
+          </div>
+          <div className="border-l-2 border-terminal-primary pl-4">
+            <div className="text-terminal-accent font-bold flex items-center gap-2">
+              <Building2 size={16} />
+              Backend Developer
+            </div>
+            <div className="text-terminal-primary text-sm">SST Internal Tools • Nov 2024 - Aug 2025</div>
+            <div className="text-sm mt-2 space-y-1">
+              <div>• Built a unified campus platform integrating academic, administrative, and student workflows with Spring Boot &amp; PostgreSQL</div>
+              <div>• Implemented JWT authentication, RBAC, and secure REST APIs using Spring Security</div>
+              <div>• Delivered automation features: Excel processing, PDF generation, scheduling, and notifications</div>
             </div>
           </div>
         </div>
@@ -255,66 +324,48 @@ const Terminal = () => {
     ),
     education: () => (
       <div className="text-terminal-text">
-        <div className="text-terminal-secondary mb-2">▶ Education</div>
+        <div className="text-terminal-secondary mb-3 term-section">▶ Education</div>
         <div className="ml-4 space-y-3">
-          <div className="border border-terminal-muted p-3 rounded">
-            <div className="text-terminal-accent font-bold">B.Tech in Computer Science & Artificial Intelligence</div>
-            <div className="text-terminal-primary text-sm">Scaler School of Technology • Aug 2024 - Jul 2028</div>
-            <div className="text-sm mt-1">CGR: 8.0</div>
-            <div className="text-terminal-muted text-xs mt-1">Bengaluru, India</div>
+          <div className="term-card">
+            <div className="text-terminal-accent font-bold">B.S. in Computer Science</div>
+            <div className="text-terminal-primary text-sm">Birla Institute of Technology (BITS Pilani) • Graduation 2027</div>
           </div>
-          <div className="border border-terminal-muted p-3 rounded">
-            <div className="text-terminal-accent font-bold">Bachelor of Science in Computer Science</div>
-            <div className="text-terminal-primary text-sm">Birla Institute of Technology (BITS Pilani) • Jul 2024 - Aug 2028</div>
-            <div className="text-sm mt-1">CGPA: 8.7</div>
-          </div>
-          <div className="border border-terminal-muted p-3 rounded">
-            <div className="text-terminal-accent font-bold">Senior Secondary (Class XI-XII)</div>
-            <div className="text-terminal-primary text-sm">School of Specialized Excellence (SoSE), Delhi • Apr 2022 - Mar 2024</div>
-            <div className="text-sm mt-1">IB Board</div>
-          </div>
-          <div className="border border-terminal-muted p-3 rounded">
-            <div className="text-terminal-accent font-bold">Secondary Education (Class X)</div>
-            <div className="text-terminal-primary text-sm">Birla Vidya Niketan, Delhi • Apr 2010 - Mar 2022</div>
-            <div className="text-sm mt-1">CBSE Board</div>
+          <div className="term-card">
+            <div className="text-terminal-accent font-bold">Senior Secondary (IB Board)</div>
+            <div className="text-terminal-primary text-sm">School of Specialized Excellence (SoSE), Delhi • 2022 - 2024</div>
           </div>
         </div>
       </div>
     ),
     achievements: () => (
       <div className="text-terminal-text">
-        <div className="text-terminal-secondary mb-2">▶ Achievements</div>
+        <div className="text-terminal-secondary mb-3 term-section">▶ Leadership &amp; Achievements</div>
         <div className="ml-4 space-y-2">
-          <div>🏆 Selected for SDE Internship at InterviewBit/Scaler</div>
-          <div>🎓 Dual Degree Student - SST & BITS Pilani (CGPA: 8.7)</div>
-          <div>🛠️ Built internal tools serving 2000+ students at SST</div>
-          <div>💻 Contributed to multiple open-source projects</div>
-          <div>🚀 Participated in Carbonix Hackathon (Rust)</div>
+          <div>🏅 Head, Event Management Committee — led planning, sponsorships, logistics, and execution of college events</div>
+          <div>🏆 CodeChef 3★ (Max rating 1611) — Global Rank 166 in CodeChef Contest 199</div>
+          <div>🤖 Built 4 RL environments for frontier-model training at Scaler AI Labs</div>
+          <div>🛠️ Built a unified campus platform for SST (SST Internal Tools)</div>
         </div>
       </div>
     ),
     contact: () => (
       <div className="text-terminal-text">
-        <div className="text-terminal-secondary mb-2">▶ Contact Information</div>
+        <div className="text-terminal-secondary mb-3 term-section">▶ Contact Information</div>
         <div className="ml-4 space-y-2">
           <div className="flex items-center gap-2">
-            <span className="text-terminal-accent">📍 Location:</span> 
+            <span className="text-terminal-accent">📍 Location:</span>
             <span>Bengaluru, India</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-terminal-accent">📞 Phone:</span> 
-            <span>+91-9266561656</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-terminal-accent">📧 Email:</span> 
+            <span className="text-terminal-accent">📧 Email:</span>
             <a href="mailto:rudraymehra@gmail.com" className="text-terminal-primary hover:text-terminal-accent">rudraymehra@gmail.com</a>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-terminal-accent">🌐 GitHub:</span> 
+            <span className="text-terminal-accent">🌐 GitHub:</span>
             <a href="https://github.com/rudraymehra" target="_blank" rel="noopener noreferrer" className="text-terminal-primary hover:text-terminal-accent">github.com/rudraymehra</a>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-terminal-accent">💼 LinkedIn:</span> 
+            <span className="text-terminal-accent">💼 LinkedIn:</span>
             <a href="https://linkedin.com/in/rudray-mehra" target="_blank" rel="noopener noreferrer" className="text-terminal-primary hover:text-terminal-accent">linkedin.com/in/rudray-mehra</a>
           </div>
         </div>
@@ -322,13 +373,13 @@ const Terminal = () => {
     ),
     resume: () => (
       <div className="text-terminal-text">
-        <div className="text-terminal-secondary mb-2">▶ Resume</div>
+        <div className="text-terminal-secondary mb-3 term-section">▶ Resume</div>
         <div className="ml-4 space-y-2">
           <div>📄 Download my resume:</div>
-          <a 
-            href="https://drive.google.com/file/d/1pEDOso3pqtHQ_4GOCBrxDXbVmor2rRtT/view?usp=sharing"
-            target="_blank" 
-            rel="noopener noreferrer" 
+          <a
+            href={RESUME_URL}
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-terminal-primary hover:text-terminal-accent transition-colors flex items-center gap-2"
           >
             <FileText size={14} />
@@ -355,6 +406,30 @@ const Terminal = () => {
       setCommandHistory([]);
       setHistoryIndex(-1);
       return null;
+    },
+    crt: () => {
+      const enabled = document.documentElement.classList.toggle('crt-effect');
+      return (
+        <div className="text-terminal-accent">
+          📺 CRT / scanline effect {enabled ? 'enabled' : 'disabled'}. Run <span className="text-terminal-primary">crt</span> again to toggle.
+        </div>
+      );
+    },
+    history: () => {
+      const entries = commandHistory.map((c) => c.input).filter(Boolean);
+      if (!entries.length) {
+        return <div className="text-terminal-muted">No commands in history yet.</div>;
+      }
+      return (
+        <div className="text-terminal-text">
+          {entries.map((cmd, i) => (
+            <div key={i} className="text-sm">
+              <span className="text-terminal-muted mr-3">{i + 1}</span>
+              {cmd}
+            </div>
+          ))}
+        </div>
+      );
     },
     ls: () => (
       <div className="text-terminal-text">
@@ -443,7 +518,7 @@ const Terminal = () => {
     ),
     man: () => (
       <div className="text-terminal-text">
-        <div className="text-terminal-secondary mb-2">▶ Manual Pages</div>
+        <div className="text-terminal-secondary mb-3 term-section">▶ Manual Pages</div>
         <div className="ml-4 space-y-2">
           <div>Available commands:</div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
@@ -453,6 +528,8 @@ const Terminal = () => {
             <div>• whoami - Print effective user ID</div>
             <div>• date - Display system date/time</div>
             <div>• echo - Display a line of text</div>
+            <div>• history - Show command history</div>
+            <div>• crt - Toggle CRT/scanline effect</div>
             <div>• clear - Clear terminal screen</div>
             <div>• exit - Exit the terminal</div>
             <div>• theme - Change terminal theme</div>
@@ -502,23 +579,7 @@ const Terminal = () => {
       ];
       return <div className="text-terminal-text">{quotes[Math.floor(Math.random() * quotes.length)]}</div>;
     },
-    welcome: () => (
-      <div className="text-terminal-text">
-        <div className="space-y-2">
-          <div className="text-terminal-accent">Welcome to Rudray's Portfolio Terminal! 🚀</div>
-          <div className="text-sm">I'm a Full Stack Developer & Backend Engineer specializing in Spring Boot, React, and scalable system design.</div>
-          <div className="text-sm mt-4">Quick Start:</div>
-          <div className="ml-4 space-y-1 text-sm">
-            <div>• Type <span className="text-terminal-primary">help</span> to see available commands</div>
-            <div>• Type <span className="text-terminal-primary">about</span> to learn more about me</div>
-            <div>• Type <span className="text-terminal-primary">projects</span> to view my work</div>
-            <div>• Type <span className="text-terminal-primary">experience</span> to see my internship</div>
-            <div>• Type <span className="text-terminal-primary">contact</span> to get in touch</div>
-          </div>
-          <div className="text-terminal-primary mt-4">Ready to explore? Let's dive in! 💻</div>
-        </div>
-      </div>
-    ),
+    welcome: () => welcomeOutput(),
     cowsay: (input: string = '') => {
       const message = input.replace('cowsay', '').trim() || 'Moo!';
       return (
@@ -551,20 +612,37 @@ const Terminal = () => {
     CPU: JavaScript Engine
     Memory: Browser Memory
     Languages: Java, TypeScript, Python
-    Framework: Spring Boot, React
+    Framework: Spring Boot, Next.js, React
     `}</pre>
       </div>
     )
   };
 
+  // List of typed commands used for autocomplete + "did you mean?"
+  const commandList = Object.keys(commands);
+
+  // ↑/↓ cycle a curated menu first, then any extra commands the visitor actually typed.
+  const typedCommands = commandHistory
+    .map((c) => c.input.trim().toLowerCase())
+    .filter((i) => i && i !== 'welcome');
+  const navItems = [...new Set([...QUICK_COMMANDS, ...typedCommands])];
+
+  // Ghost autocomplete suggestion for the current input
+  const trimmedLower = currentInput.toLowerCase();
+  const suggestion =
+    currentInput && !currentInput.includes(' ')
+      ? commandList.find((c) => c.startsWith(trimmedLower) && c !== trimmedLower)
+      : undefined;
+  const ghost = suggestion ? suggestion.slice(currentInput.length) : '';
+
   const handleCommand = (input: string) => {
     const trimmedInput = input.trim().toLowerCase();
-    
+
     // Handle sudo commands
     if (trimmedInput.startsWith('sudo ')) {
       const command = trimmedInput.replace('sudo', '').trim();
-      setCommandHistory(prev => [...prev, { 
-        input, 
+      setCommandHistory(prev => [...prev, {
+        input,
         output: <div className="text-terminal-text">
           <div className="text-red-400">Permission denied: {command}</div>
           <div className="text-terminal-muted text-sm mt-1">This is a read-only terminal for portfolio navigation.</div>
@@ -594,22 +672,22 @@ const Terminal = () => {
     if (trimmedInput.startsWith('theme ')) {
       const themeName = trimmedInput.split(' ')[1];
       const validThemes = ['matrix', 'cyberpunk', 'retro'];
-      
+
       if (validThemes.includes(themeName)) {
         // Remove existing theme classes
         document.documentElement.classList.remove('theme-matrix', 'theme-cyberpunk', 'theme-retro');
         // Add new theme class
         document.documentElement.classList.add(`theme-${themeName}`);
-        
-        setCommandHistory(prev => [...prev, { 
-          input, 
+
+        setCommandHistory(prev => [...prev, {
+          input,
           output: <div className="text-terminal-accent">Theme switched to {themeName} successfully!</div>
         }]);
         setHistoryIndex(-1);
         return;
       } else {
-        setCommandHistory(prev => [...prev, { 
-          input, 
+        setCommandHistory(prev => [...prev, {
+          input,
           output: <div className="text-red-400">Invalid theme. Available themes: matrix, cyberpunk, retro</div>
         }]);
         setHistoryIndex(-1);
@@ -618,18 +696,32 @@ const Terminal = () => {
     }
 
     const command = commands[trimmedInput as keyof typeof commands];
-    
+
     if (trimmedInput === 'clear') {
       setCommandHistory([]);
       setHistoryIndex(-1);
       return;
     }
 
-    const output = command ? command() : (
-      <div className="text-red-400">
-        Command '{input}' not found. Type 'help' for available commands.
-      </div>
-    );
+    let output: React.ReactNode;
+    if (command) {
+      output = command();
+    } else {
+      // "Did you mean?" — closest command by edit distance
+      const closest = commandList
+        .map((c) => ({ c, d: levenshtein(trimmedInput, c) }))
+        .sort((a, b) => a.d - b.d)[0];
+      output = (
+        <div className="text-red-400">
+          Command '{input}' not found. Type 'help' for available commands.
+          {closest && closest.d <= 2 && (
+            <div className="text-terminal-muted mt-1">
+              Did you mean '<span className="text-terminal-primary">{closest.c}</span>'?
+            </div>
+          )}
+        </div>
+      );
+    }
 
     setCommandHistory(prev => [...prev, { input, output }]);
     setHistoryIndex(-1);
@@ -644,75 +736,130 @@ const Terminal = () => {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowUp') {
       e.preventDefault();
-      if (commandHistory.length > 0) {
-        const newIndex = historyIndex === -1 
-          ? commandHistory.length - 1 
-          : Math.max(0, historyIndex - 1);
+      if (!navItems.length) return;
+      // Step backwards; from empty input, jump to the last item.
+      const newIndex = historyIndex === -1 ? navItems.length - 1 : historyIndex - 1;
+      if (newIndex < 0) {
+        setHistoryIndex(-1);
+        setCurrentInput('');
+      } else {
         setHistoryIndex(newIndex);
-        setCurrentInput(commandHistory[newIndex].input);
+        setCurrentInput(navItems[newIndex]);
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      if (historyIndex !== -1) {
-        const newIndex = historyIndex + 1;
-        if (newIndex >= commandHistory.length) {
-          setHistoryIndex(-1);
-          setCurrentInput('');
+      if (!navItems.length) return;
+      // Step forwards; from empty input, jump to the first item.
+      const newIndex = historyIndex === -1 ? 0 : historyIndex + 1;
+      if (newIndex >= navItems.length) {
+        setHistoryIndex(-1);
+        setCurrentInput('');
+      } else {
+        setHistoryIndex(newIndex);
+        setCurrentInput(navItems[newIndex]);
+      }
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      const val = trimmedLower.trim();
+      if (!val) return;
+      const matches = commandList.filter((c) => c.startsWith(val));
+      if (matches.length === 1) {
+        setCurrentInput(matches[0]);
+      } else if (matches.length > 1) {
+        const prefix = longestCommonPrefix(matches);
+        if (prefix.length > val.length) {
+          setCurrentInput(prefix);
         } else {
-          setHistoryIndex(newIndex);
-          setCurrentInput(commandHistory[newIndex].input);
+          // Print candidates like a real shell
+          setCommandHistory(prev => [...prev, {
+            input: currentInput,
+            output: (
+              <div className="text-terminal-text flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                {matches.map((m) => (
+                  <span key={m} className="text-terminal-primary">{m}</span>
+                ))}
+              </div>
+            ),
+          }]);
+          setHistoryIndex(-1);
         }
+      }
+    } else if (e.key === 'ArrowRight' && ghost) {
+      // Accept ghost suggestion only when caret is at the end
+      if (e.currentTarget.selectionStart === currentInput.length) {
+        e.preventDefault();
+        setCurrentInput(suggestion as string);
       }
     }
   };
 
   const asciiName = `
-██████  ██    ██ ██████  ██████   █████  ██    ██ 
-██   ██ ██    ██ ██   ██ ██   ██ ██   ██  ██  ██  
-██████  ██    ██ ██   ██ ██████  ███████   ████   
-██   ██ ██    ██ ██   ██ ██   ██ ██   ██    ██    
-██   ██  ██████  ██████  ██   ██ ██   ██    ██    
+██████  ██    ██ ██████  ██████   █████  ██    ██
+██   ██ ██    ██ ██   ██ ██   ██ ██   ██  ██  ██
+██████  ██    ██ ██   ██ ██████  ███████   ████
+██   ██ ██    ██ ██   ██ ██   ██ ██   ██    ██
+██   ██  ██████  ██████  ██   ██ ██   ██    ██
   `;
 
+  // Boot sequence typing animation on first load
   useEffect(() => {
-    const welcomeCommand = () => (
-      <div className="text-terminal-text">
-        <div className="mb-4">Welcome to my portfolio! - Type 'help' for a list of supported commands.</div>
-        <div className="text-sm mb-2">Full Stack Developer • Backend Engineer • SDE Intern at InterviewBit</div>
-        <div className="text-terminal-primary">Ready to explore? Let's dive in! 🚀</div>
-      </div>
-    );
-
-    setCommandHistory([{ input: 'welcome', output: welcomeCommand() }]);
+    let i = 0;
+    const type = () => {
+      i += 1;
+      setBootText(BOOT_SEQUENCE.slice(0, i));
+      if (i < BOOT_SEQUENCE.length) {
+        bootTimer.current = setTimeout(type, 18);
+      } else {
+        bootTimer.current = setTimeout(() => {
+          setBooting(false);
+          setCommandHistory([{ input: 'welcome', output: welcomeOutput() }]);
+          inputRef.current?.focus();
+        }, 350);
+      }
+    };
+    bootTimer.current = setTimeout(type, 250);
+    return () => clearTimeout(bootTimer.current);
   }, []);
 
+  const skipBoot = () => {
+    if (!booting) return;
+    clearTimeout(bootTimer.current);
+    setBooting(false);
+    setBootText(BOOT_SEQUENCE);
+    setCommandHistory([{ input: 'welcome', output: welcomeOutput() }]);
+    inputRef.current?.focus();
+  };
+
   useEffect(() => {
-    if (commandHistoryRef.current) {
-      commandHistoryRef.current.scrollTop = commandHistoryRef.current.scrollHeight;
-    }
+    // Scroll the terminal pane (not the page) to the latest line
+    const el = commandHistoryRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [commandHistory]);
 
   return (
-    <div className="min-h-screen bg-terminal-bg terminal-background relative">
+    <div className="min-h-screen bg-terminal-bg terminal-background relative overflow-hidden" onClick={() => inputRef.current?.focus()}>
+      {/* Ambient background typing effect */}
+      <BackgroundCode />
+
       {/* Header */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center p-4 lg:p-6 border-b border-terminal-muted/20 gap-4 lg:gap-0">
         {/* Name Section */}
-        <div className="flex flex-col lg:flex-row items-start lg:items-center gap-2 lg:gap-4">
-          <div className="ascii-art text-terminal-primary text-lg font-bold neon-glow">
-            <pre className="text-xs sm:text-sm lg:text-base leading-tight">{asciiName}</pre>
+        <div className="flex flex-col items-start gap-2">
+          <div className="ascii-art text-terminal-primary font-bold neon-glow">
+            <pre className="text-[9px] sm:text-xs lg:text-sm leading-tight">{asciiName}</pre>
           </div>
-          <div className="text-terminal-text text-xs sm:text-sm">
-            <div>SDE Intern at InterviewBit</div>
+          <div className="text-terminal-muted text-xs sm:text-sm pl-0.5">Full Stack &amp; Backend Engineer • BITS Pilani</div>
+          <div className="flex items-center gap-2 text-xs sm:text-sm pl-0.5">
+            <span className="status-dot" />
+            <span className="text-terminal-primary">open to opportunities</span>
           </div>
         </div>
 
         {/* Social Links */}
-        <div className="flex flex-col gap-2 text-xs sm:text-sm w-full lg:w-auto">
-          <div className="text-terminal-accent text-left lg:text-center mb-2">Rudray Mehra</div>
-          <div className="text-terminal-muted text-xs text-left lg:text-center mb-2">Full Stack Developer • Backend Engineer • CS Student @ SST & BITS</div>
+        <div className="flex flex-col gap-2 text-xs sm:text-sm w-full lg:w-auto lg:items-end">
           <div className="space-y-1">
             <a href="https://github.com/rudraymehra" target="_blank" rel="noopener noreferrer" className="text-terminal-text hover:text-terminal-primary transition-colors flex items-center gap-2">
               <Github size={14} />
@@ -730,72 +877,109 @@ const Terminal = () => {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto p-4 lg:p-6 pb-24">
+      <div className="max-w-6xl mx-auto p-4 lg:p-6 pb-8">
         {/* Terminal Window */}
-        <div className="terminal-window rounded-lg p-4 lg:p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-3 h-3 rounded-full bg-red-500"></div>
-            <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-            <div className="ml-4 text-terminal-muted text-xs sm:text-sm">rudray@portfolio:~$</div>
+        <div className="terminal-window rounded-xl overflow-hidden">
+          <div className="term-titlebar flex items-center gap-2 px-4 lg:px-5 py-3">
+            <div className="flex items-center gap-2">
+              <div className="term-dot bg-[#ff5f57]"></div>
+              <div className="term-dot bg-[#febc2e]"></div>
+              <div className="term-dot bg-[#28c840]"></div>
+            </div>
+            <div className="flex-1 text-center text-terminal-muted text-xs tracking-wide">
+              rudray@portfolio — ~/portfolio — zsh
+            </div>
+            <div className="w-[52px]"></div>
           </div>
 
-          {/* Welcome message */}
-          <div className="mb-6 text-terminal-text text-sm">
-            <div>Welcome to my portfolio! - Type 'help' for a list of supported commands.</div>
-          </div>
+          <div className="px-4 lg:px-6 pt-4 lg:pt-5 pb-3 lg:pb-4 flex flex-col h-[60vh] md:h-[65vh]">
 
-          {/* Command History */}
-          <div 
-            ref={commandHistoryRef}
-            className="space-y-4 mb-4 max-h-96 overflow-y-auto scroll-smooth"
-          >
-            {commandHistory.map((cmd, index) => (
-              <div key={index}>
-                <div className="command-line text-terminal-primary text-sm">{cmd.input}</div>
-                <div className="mt-2 ml-6">{cmd.output}</div>
+          {booting ? (
+            /* Boot sequence */
+            <div
+              className="text-terminal-primary text-sm font-mono cursor-pointer flex-1"
+              onClick={skipBoot}
+            >
+              <pre className="whitespace-pre-wrap leading-relaxed">{bootText}<span className="block-cursor align-middle" /></pre>
+              <div className="text-terminal-muted text-xs mt-4">(click anywhere to skip)</div>
+            </div>
+          ) : (
+            <>
+              {/* Command History + live prompt (scrolls internally) */}
+              <div
+                ref={commandHistoryRef}
+                className="term-scroll flex-1 min-h-0 overflow-y-auto space-y-4 pr-1"
+              >
+                {commandHistory.map((cmd, index) => (
+                  <div key={index} className="animate-fade-in-up">
+                    <div className="command-line text-terminal-primary text-sm">{cmd.input}</div>
+                    {cmd.output && <div className="mt-2 ml-6">{cmd.output}</div>}
+                  </div>
+                ))}
+
+              {/* Current Input (flows directly under the latest output) */}
+              <div className="flex items-center pt-1">
+                <span className="text-terminal-primary mr-2 text-sm font-semibold">rudray@portfolio
+                  <span className="text-terminal-muted">:</span>
+                  <span className="text-terminal-accent">~</span>
+                  <span className="text-terminal-muted"> $</span>
+                </span>
+                <div className="relative flex-1 flex items-center">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={currentInput}
+                    onChange={(e) => setCurrentInput(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    onKeyDown={handleKeyDown}
+                    style={{ caretColor: 'var(--terminal-primary)' }}
+                    className="bg-transparent border-none outline-none text-terminal-text w-full font-mono text-sm px-0 placeholder:text-terminal-muted/70"
+                    placeholder={'type a command — or press ↑ ↓ to browse'}
+                    autoFocus
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  {ghost && (
+                    <div className="pointer-events-none absolute inset-0 flex items-center font-mono text-sm">
+                      <span className="invisible whitespace-pre">{currentInput}</span>
+                      <span className="text-terminal-muted whitespace-pre">{ghost}</span>
+                    </div>
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
+              </div>
 
-          {/* Current Input */}
-          <div className="flex items-center">
-            <span className="text-terminal-primary mr-2 text-sm">[rudray]-$</span>
-            <input
-              type="text"
-              value={currentInput}
-              onChange={(e) => setCurrentInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              onKeyDown={handleKeyDown}
-              className="bg-transparent border-none outline-none text-terminal-text flex-1 font-mono cursor text-sm"
-              placeholder=""
-              autoFocus
-            />
+              {/* Hint / status bar (always visible, doesn't scroll) */}
+              <div className="term-hintbar shrink-0 mt-3 text-terminal-muted text-xs flex flex-wrap items-center gap-x-5 gap-y-2">
+                <span className="flex items-center gap-1.5"><span className="kbd">↑</span><span className="kbd">↓</span> browse commands</span>
+                <span className="flex items-center gap-1.5"><span className="kbd">Tab</span> autocomplete</span>
+                <span className="flex items-center gap-1.5"><span className="kbd">help</span> all commands</span>
+                <span className="flex items-center gap-1.5"><span className="kbd">crt</span> retro mode</span>
+              </div>
+            </>
+          )}
           </div>
         </div>
       </div>
 
       {/* Internship Badge - Fixed to bottom right */}
-      <div className="fixed bottom-4 right-4 z-10">
-        <div className="terminal-window rounded p-3 text-xs text-terminal-text max-w-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-terminal-accent rounded-full flex items-center justify-center flex-shrink-0">
-              <span className="text-terminal-bg">💼</span>
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-terminal-accent font-semibold">Currently @ InterviewBit</div>
-              <div className="text-terminal-primary truncate">SDE Intern</div>
-              <div className="text-terminal-muted truncate">Nov 2025 - Feb 2026</div>
-              <a 
-                href="https://www.interviewbit.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-terminal-secondary hover:text-terminal-primary transition-colors text-xs mt-1 block truncate"
-              >
-                Learn more at InterviewBit →
-              </a>
-            </div>
+      <div className="fixed bottom-4 right-4 z-20 hidden sm:block">
+        <div className="terminal-window term-card rounded-lg p-3 text-xs text-terminal-text max-w-[16rem]">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="status-dot" />
+            <span className="text-terminal-muted uppercase tracking-[0.18em] text-[10px]">most recent role</span>
           </div>
+          <div className="text-terminal-accent font-semibold">SDE Intern · Scaler AI Labs</div>
+          <div className="text-terminal-text/80 truncate">InterviewBit · frontier-model RL</div>
+          <div className="text-terminal-muted truncate mt-0.5">Nov 2025 — Feb 2026</div>
+          <a
+            href="https://www.interviewbit.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-terminal-secondary hover:text-terminal-primary transition-colors text-xs mt-1.5 inline-flex items-center gap-1"
+          >
+            Learn more →
+          </a>
         </div>
       </div>
     </div>
